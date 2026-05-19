@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuietJourney — Travel planner</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">
+      <span class="logo">◐</span>
+      <span class="brand-name">QuietJourney</span>
+    </div>
+    <p class="tagline">Calm, step-by-step trips for travellers who like their own space.</p>
+  </header>
+
+  <main class="container">
+    <!-- Progress bar -->
+    <div class="progress" aria-label="Planning progress">
+      <div class="progress-bar" id="progressBar"></div>
+      <div class="steps-labels">
+        <span class="step-label active" data-step="1">Route</span>
+        <span class="step-label" data-step="2">Details</span>
+        <span class="step-label" data-step="3">Travel</span>
+        <span class="step-label" data-step="4">Stay</span>
+        <span class="step-label" data-step="5">Explore</span>
+        <span class="step-label" data-step="6">Review</span>
+      </div>
+    </div>
+
+    <form id="tripForm" class="card" novalidate>
+
+      <!-- Step 1: Route -->
+      <section class="step active" data-step="1">
+        <h2>Where are you headed?</h2>
+        <p class="subtitle">Just tell us the cities — we'll find the nearest stations for you.</p>
+
+        <div class="field">
+          <label for="fromCity">From</label>
+          <select id="fromCity" name="fromCity" required>
+            <option value="" selected disabled>Loading cities…</option>
+          </select>
+          <div class="auto-line" id="fromAuto" hidden>
+            We'll board from <strong id="fromStationText"></strong>
+            <button type="button" class="link-btn" data-edit="from">change</button>
+          </div>
+          <input type="text" id="fromStation" name="fromStation" class="sub-input" hidden placeholder="Enter boarding station" />
+        </div>
+
+        <div class="field">
+          <label for="toCity">To</label>
+          <select id="toCity" name="toCity" required>
+            <option value="" selected disabled>Loading cities…</option>
+          </select>
+          <div class="auto-line" id="toAuto" hidden>
+            We'll arrive at <strong id="toStationText"></strong>
+            <button type="button" class="link-btn" data-edit="to">change</button>
+          </div>
+          <input type="text" id="toStation" name="toStation" class="sub-input" hidden placeholder="Enter drop-off station" />
+        </div>
+
+        <p class="hint" id="cityHint">Only cities with live train data are listed.</p>
+
+        <div class="actions">
+          <button type="button" class="btn-primary next-btn">Next</button>
+        </div>
+      </section>
+
+      <!-- Step 2: Details -->
+      <section class="step" data-step="2">
+        <h2>A few more details</h2>
+        <p class="subtitle">Pick a pace that feels comfortable — no rush.</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="days">Number of days</label>
+            <input type="number" id="days" name="days" min="1" max="60" placeholder="e.g. 4" required />
+          </div>
+
+          <div class="field">
+            <label for="passengers">Number of passengers</label>
+            <input type="number" id="passengers" name="passengers" min="1" max="20" value="1" required />
+          </div>
+        </div>
+
+        <div class="field toggle-field">
+          <label class="toggle">
+            <input type="checkbox" id="returnTrip" name="returnTrip" />
+            <span class="toggle-text">I need a return journey too</span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label>What kind of trip is this?</label>
+          <div class="purpose-options">
+            <label class="purpose-card">
+              <input type="radio" name="purpose" value="fun" checked />
+              <div class="purpose-content">
+                <span class="purpose-icon">🌿</span>
+                <span class="purpose-title">Fun / Leisure</span>
+                <span class="purpose-desc">Exploring, relaxing, sightseeing</span>
+              </div>
+            </label>
+            <label class="purpose-card">
+              <input type="radio" name="purpose" value="work" />
+              <div class="purpose-content">
+                <span class="purpose-icon">💼</span>
+                <span class="purpose-title">Work / Meeting</span>
+                <span class="purpose-desc">Professional, business, conference</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn-secondary prev-btn">Back</button>
+          <button type="button" class="btn-primary next-btn">Compare options</button>
+        </div>
+      </section>
+
+      <!-- Step 3: Compare -->
+      <section class="step" data-step="3">
+        <h2>Here's what's available</h2>
+        <p class="subtitle" id="routeSubtitle">Pick whichever fits your budget and pace.</p>
+
+        <!-- Quick stats -->
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <!-- Tabs + sort -->
+        <div class="toolbar">
+          <div class="tabs" role="tablist">
+            <button type="button" class="tab active" data-tab="all">All</button>
+            <button type="button" class="tab" data-tab="Train">Trains</button>
+            <button type="button" class="tab" data-tab="Bus">Buses</button>
+          </div>
+          <div class="sort-wrap">
+            <label for="sortBy">Sort:</label>
+            <select id="sortBy">
+              <option value="price">Cheapest first</option>
+              <option value="duration">Fastest first</option>
+              <option value="depart">Earliest departure</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <label class="toggle small">
+            <input type="checkbox" id="nightOnly" />
+            <span class="toggle-text">Prefer night travel (quieter, fewer crowds)</span>
+          </label>
+        </div>
+
+        <!-- Option list -->
+        <div class="option-list" id="optionList"></div>
+
+        <p class="disclaimer">Prices and times are indicative estimates — confirm on IRCTC or the operator site before booking.</p>
+
+        <div class="actions">
+          <button type="button" class="btn-secondary prev-btn">Back</button>
+          <button type="button" class="btn-primary next-btn" id="continueBtn" disabled>Continue</button>
+        </div>
+      </section>
+
+      <!-- Step 4: Stay -->
+      <section class="step" data-step="4">
+        <h2>Where will you stay?</h2>
+        <p class="subtitle" id="staySubtitle">Nearby places to rest — from easy on the wallet to full comfort.</p>
+
+        <div class="toolbar">
+          <label class="toggle small">
+            <input type="checkbox" id="skipHotel" />
+            <span class="toggle-text">I'll arrange my own stay</span>
+          </label>
+          <div class="sort-wrap">
+            <label for="sortHotel">Sort:</label>
+            <select id="sortHotel">
+              <option value="price">Cheapest first</option>
+              <option value="rating">Top rated</option>
+              <option value="distance">Nearest to station</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filter-row">
+          <label class="toggle small">
+            <input type="checkbox" id="quietOnly" />
+            <span class="toggle-text">Show quiet & solo-friendly places only</span>
+          </label>
+        </div>
+
+        <div class="option-list" id="hotelList"></div>
+
+        <p class="disclaimer">Hotel prices are indicative per room, per night. Confirm on the hotel site or MakeMyTrip before booking.</p>
+
+        <div class="actions">
+          <button type="button" class="btn-secondary prev-btn">Back</button>
+          <button type="button" class="btn-primary next-btn" id="toExploreBtn">Next</button>
+        </div>
+      </section>
+
+      <!-- Step 5: Explore -->
+      <section class="step" data-step="5">
+        <h2 id="exploreTitle">Before you land</h2>
+        <p class="subtitle">A few things to make arriving easier.</p>
+
+        <!-- Arrival & getting around -->
+        <div class="info-card">
+          <h3>📍 Getting to your stay</h3>
+          <div id="arrivalContent"></div>
+        </div>
+
+        <!-- Route map (Leaflet + OpenStreetMap) -->
+        <div class="info-card" id="mapCard" hidden>
+          <h3>🗺️ Your route</h3>
+          <div class="map-tabs" role="tablist">
+            <button type="button" class="map-tab active" data-mapview="route">Full route</button>
+            <button type="button" class="map-tab" data-mapview="dest">Around your stay</button>
+          </div>
+          <div id="routeMap" class="route-map"></div>
+          <p class="disclaimer" id="mapMeta">Tiles © OpenStreetMap contributors · routing © OSRM.</p>
+        </div>
+
+        <!-- About the city (live from Wikipedia) -->
+        <div class="info-card" id="cityInfoCard" hidden>
+          <h3>📖 About <span id="cityInfoName"></span></h3>
+          <div id="cityInfoContent"></div>
+        </div>
+
+        <!-- Weather (live from Open-Meteo) -->
+        <div class="info-card" id="weatherCard" hidden>
+          <h3>🌤️ Weather in <span id="weatherCity"></span> <span class="weather-sub">(next 7 days)</span></h3>
+          <div id="weatherContent"></div>
+        </div>
+
+        <!-- Things to do (fun trips only) -->
+        <div class="info-card" id="activitiesCard" hidden>
+          <h3>🌿 Calm things to do in <span id="activityCity"></span></h3>
+          <p class="info-sub">Tick what sounds good. Skip what doesn't. No pressure.</p>
+          <div id="activitiesList"></div>
+        </div>
+
+        <!-- Carbon footprint -->
+        <div class="info-card" id="carbonCard" hidden>
+          <h3>🌱 Your carbon footprint</h3>
+          <div id="carbonContent"></div>
+        </div>
+
+        <!-- Safety -->
+        <div class="info-card">
+          <h3>🛟 Safety & peace of mind</h3>
+          <div id="safetyContent"></div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn-secondary prev-btn">Back</button>
+          <button type="button" class="btn-primary next-btn">Review trip</button>
+        </div>
+      </section>
+
+      <!-- Step 6: Review -->
+      <section class="step" data-step="6">
+        <h2>Your trip, at a glance</h2>
+        <p class="subtitle">Take a breath. If something's off, step back and change it.</p>
+
+        <ul class="summary" id="summary"></ul>
+
+        <div class="total-box" id="totalBox"></div>
+
+        <div class="actions">
+          <button type="button" class="btn-secondary prev-btn">Back</button>
+          <button type="submit" class="btn-primary">Confirm plan</button>
+        </div>
+      </section>
+
+      <!-- Step 7: Done -->
+      <section class="step done" data-step="7">
+        <div class="done-icon">✓</div>
+        <h2>All set.</h2>
+        <p class="subtitle">Your journey is ready. Breathe easy — you've got this.</p>
+        <div class="actions center">
+          <button type="button" class="btn-primary" id="restartBtn">Plan another trip</button>
+        </div>
+      </section>
+
+    </form>
+
+    <footer class="site-footer">
+      <p>Made for quiet travellers. One step at a time.</p>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
